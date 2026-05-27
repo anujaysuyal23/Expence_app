@@ -412,6 +412,10 @@ input[type="range"] {
   grid-template-columns: minmax(320px, 1fr) minmax(300px, 0.9fr);
 }
 
+.car-content-grid {
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.9fr);
+}
+
 .group-actions {
   grid-template-columns: auto auto auto;
 }
@@ -628,6 +632,10 @@ td {
   font-weight: 900;
 }
 
+.income-cell {
+  color: var(--blue);
+}
+
 .row-action {
   width: 32px;
   height: 32px;
@@ -652,7 +660,8 @@ td {
 @media (max-width: 1080px) {
   .app-shell,
   .content-grid,
-  .group-content-grid {
+  .group-content-grid,
+  .car-content-grid {
     grid-template-columns: 1fr;
   }
 

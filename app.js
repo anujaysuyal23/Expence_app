@@ -1,9 +1,11 @@
 const STORAGE_KEY = "daily-expenses-report:v1";
 const BUDGET_KEY = "daily-expenses-report:budget";
 const GROUPS_KEY = "expense-split:groups:v1";
+const CAR_KEY = "expense-split:car:v1";
 const SUPABASE_REST_URL = "https://lmdjblewkuaraqrpgpws.supabase.co/rest/v1";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ux2-Xg0drJchEU0OTmAnQA_MKdcZ1gn";
 const USE_SUPABASE_GROUPS = true;
+const USE_SUPABASE_CAR = true;
 const APP_VERSION = "v2.1-supabase-check";
 
 const categories = {
@@ -14,6 +16,13 @@ const categories = {
   Health: "#7c3aed",
   Entertainment: "#0f766e",
   Education: "#b45309",
+  Petrol: "#177a5b",
+  "Petrol Sharing": "#275fbd",
+  Service: "#cb5a43",
+  Insurance: "#7c3aed",
+  PUCC: "#0f766e",
+  Repair: "#be8626",
+  Toll: "#475569",
   Other: "#475569",
 };
 
@@ -28,8 +37,10 @@ const demoExpenses = [
 const tabButtons = document.querySelectorAll(".tab-button");
 const personalPanels = [document.querySelector("#personalEntryPanel"), document.querySelector("#budgetPanel")];
 const groupPanels = [document.querySelector("#groupEntryPanel")];
+const carPanels = [document.querySelector("#carEntryPanel")];
 const personalPage = document.querySelector("#personalPage");
 const groupsPage = document.querySelector("#groupsPage");
+const carPage = document.querySelector("#carPage");
 
 const form = document.querySelector("#expenseForm");
 const amountInput = document.querySelector("#amountInput");
@@ -64,10 +75,29 @@ const balancesList = document.querySelector("#balancesList");
 const groupCanvas = document.querySelector("#groupCategoryCanvas");
 const groupCtx = groupCanvas.getContext("2d");
 
+const carForm = document.querySelector("#carForm");
+const carTypeInput = document.querySelector("#carTypeInput");
+const carCategoryInput = document.querySelector("#carCategoryInput");
+const carDescriptionInput = document.querySelector("#carDescriptionInput");
+const carAmountInput = document.querySelector("#carAmountInput");
+const carOdometerInput = document.querySelector("#carOdometerInput");
+const carLitersInput = document.querySelector("#carLitersInput");
+const carDateInput = document.querySelector("#carDateInput");
+const carSearchInput = document.querySelector("#carSearchInput");
+const carFilterInput = document.querySelector("#carFilterInput");
+const carTable = document.querySelector("#carTable");
+const carEmptyState = document.querySelector("#carEmptyState");
+const fuelTable = document.querySelector("#fuelTable");
+const fuelEmptyState = document.querySelector("#fuelEmptyState");
+const carCanvas = document.querySelector("#carCategoryCanvas");
+const carCtx = carCanvas.getContext("2d");
+const carFuelPriceLabel = document.querySelector("#carFuelPriceLabel");
+
 let expenses = readJson(STORAGE_KEY, []);
 let budget = Number(localStorage.getItem(BUDGET_KEY) || 25000);
 let groups = readJson(GROUPS_KEY, []);
 let activeGroupId = groups[0]?.id || "";
+let carEntries = readJson(CAR_KEY, []);
 
 document.documentElement.dataset.appVersion = APP_VERSION;
 document.body.insertAdjacentHTML("afterbegin", `<div class="version-badge">ExpenseSplit ${APP_VERSION}</div>`);
@@ -75,7 +105,10 @@ console.info(`ExpenseSplit ${APP_VERSION}`);
 
 dateInput.value = todayISO();
 groupExpenseDateInput.value = todayISO();
+carDateInput.value = todayISO();
 budgetInput.value = budget;
+carOdometerInput.value = "";
+carLitersInput.value = "";
 
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveTab(button.dataset.tab));
@@ -125,6 +158,172 @@ document.querySelector("#seedDemoButton").addEventListener("click", () => {
   expenses = [...demoExpenses, ...expenses];
   savePersonalExpenses();
   renderPersonal();
+});
+
+carForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const entry = {
+    id: createId(),
+    type: carTypeInput.value,
+    category: carCategoryInput.value,
+    description: carDescriptionInput.value.trim(),
+    amount: Number(carAmountInput.value),
+    date: carDateInput.value,
+    odometerKm: parseOptionalNumber(carOdometerInput.value),
+    liters: parseOptionalNumber(carLitersInput.value),
+    fuelPricePerLiter: getFuelPricePerLiter(carAmountInput.value, carLitersInput.value),
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    if (USE_SUPABASE_CAR) {
+      await createCloudCarEntry(entry);
+      carForm.reset();
+      resetCarFormDefaults();
+      await refreshCarFromCloud(entry.id);
+      return;
+    }
+
+    carEntries = [entry, ...carEntries];
+    saveCarEntries();
+    carForm.reset();
+    resetCarFormDefaults();
+    renderCar();
+  } catch (error) {
+    alert(`Could not add car entry: ${error.message}`);
+  }
+});
+
+carTypeInput.addEventListener("change", () => {
+  if (carTypeInput.value === "Income") {
+    carCategoryInput.value = "Petrol Sharing";
+  } else if (carCategoryInput.value === "Petrol Sharing") {
+    carCategoryInput.value = "Petrol";
+  }
+});
+
+carSearchInput.addEventListener("input", renderCar);
+carFilterInput.addEventListener("change", renderCar);
+
+document.querySelector("#clearCarButton").addEventListener("click", () => {
+  if (!carEntries.length) return;
+  if (confirm("Clear all car entries?")) {
+    (async () => {
+      try {
+        if (USE_SUPABASE_CAR) {
+          await clearCloudCarEntries();
+          carEntries = [];
+          saveCarEntries();
+          await refreshCarFromCloud("", false);
+          return;
+        }
+        carEntries = [];
+        saveCarEntries();
+        renderCar();
+      } catch (error) {
+        alert(`Could not clear car entries: ${error.message}`);
+      }
+    })();
+  }
+});
+
+document.querySelector("#seedCarDemoButton").addEventListener("click", async () => {
+  const demo = [
+    {
+      id: createId(),
+      type: "Expense",
+      category: "Petrol",
+      description: "Fuel refill",
+      amount: 3500,
+      date: todayISO(),
+      odometerKm: 45210,
+      liters: 35,
+      fuelPricePerLiter: 100,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: createId(),
+      type: "Income",
+      category: "Petrol Sharing",
+      description: "Ride sharing income",
+      amount: 900,
+      date: todayISO(),
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: createId(),
+      type: "Expense",
+      category: "Service",
+      description: "Annual service",
+      amount: 6200,
+      date: offsetISO(-12),
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: createId(),
+      type: "Expense",
+      category: "Insurance",
+      description: "Insurance renewal",
+      amount: 9800,
+      date: offsetISO(-30),
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: createId(),
+      type: "Expense",
+      category: "Petrol",
+      description: "Fuel refill",
+      amount: 4200,
+      date: offsetISO(-15),
+      odometerKm: 45795,
+      liters: 40,
+      fuelPricePerLiter: 105,
+      createdAt: new Date().toISOString(),
+    },
+  ];
+
+  try {
+    if (USE_SUPABASE_CAR) {
+      for (const entry of demo) {
+        await createCloudCarEntry(entry);
+      }
+      await refreshCarFromCloud();
+      return;
+    }
+
+    carEntries = [...demo, ...carEntries];
+    saveCarEntries();
+    renderCar();
+  } catch (error) {
+    alert(`Could not load car demo: ${error.message}`);
+  }
+});
+
+document.querySelector("#exportCarButton").addEventListener("click", () => {
+  if (!carEntries.length) return;
+  downloadCsv(`car-expenses-${todayISO()}.csv`, toCarCsv(carEntries));
+});
+
+carTable.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-id]");
+  if (!button) return;
+  (async () => {
+    try {
+      if (USE_SUPABASE_CAR) {
+        await deleteCloudCarEntry(button.dataset.id);
+        carEntries = carEntries.filter((entry) => entry.id !== button.dataset.id);
+        saveCarEntries();
+        await refreshCarFromCloud(button.dataset.id, false);
+        return;
+      }
+      carEntries = carEntries.filter((entry) => entry.id !== button.dataset.id);
+      saveCarEntries();
+      renderCar();
+    } catch (error) {
+      alert(`Could not delete car entry: ${error.message}`);
+    }
+  })();
 });
 
 document.querySelector("#exportButton").addEventListener("click", () => {
@@ -376,13 +575,18 @@ document.querySelector("#seedGroupDemoButton").addEventListener("click", async (
 
 function setActiveTab(tab) {
   const isPersonal = tab === "personal";
+  const isGroups = tab === "groups";
+  const isCar = tab === "car";
   tabButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.tab === tab));
   personalPanels.forEach((panel) => panel.classList.toggle("is-active", isPersonal));
-  groupPanels.forEach((panel) => panel.classList.toggle("is-active", !isPersonal));
+  groupPanels.forEach((panel) => panel.classList.toggle("is-active", isGroups));
+  carPanels.forEach((panel) => panel.classList.toggle("is-active", isCar));
   personalPage.classList.toggle("is-active", isPersonal);
-  groupsPage.classList.toggle("is-active", !isPersonal);
+  groupsPage.classList.toggle("is-active", isGroups);
+  carPage.classList.toggle("is-active", isCar);
   if (isPersonal) drawChart(groupByCategory(getCurrentMonthExpenses(expenses)));
-  if (!isPersonal) drawGroupChart(groupByCategory(getActiveGroup()?.expenses || []));
+  if (isGroups) drawGroupChart(groupByCategory(getActiveGroup()?.expenses || []));
+  if (isCar) drawCarChart(groupByCarCategory(getCurrentYearCarEntries().filter((entry) => entry.type === "Expense")));
 }
 
 function renderPersonal() {
@@ -493,6 +697,47 @@ function renderGroups() {
   drawGroupChart(groupByCategory(group.expenses));
 }
 
+function renderCar() {
+  const visibleEntries = getVisibleCarEntries();
+  const yearEntries = getCurrentYearCarEntries();
+  const expenseEntries = yearEntries.filter((entry) => entry.type === "Expense");
+  const incomeEntries = yearEntries.filter((entry) => entry.type === "Income" && entry.category === "Petrol Sharing");
+  const fuelEntries = sortCarEntriesChronologically(
+    expenseEntries.filter((entry) => entry.category === "Petrol"),
+  );
+  const fuelMetrics = calculateFuelMetrics(fuelEntries);
+  const expenseTotal = sum(expenseEntries);
+  const incomeTotal = sum(incomeEntries);
+  const netTotal = expenseTotal - incomeTotal;
+  const grouped = groupByCarCategory(expenseEntries);
+  const yearlyProgress = Math.min((incomeTotal / Math.max(expenseTotal, 1)) * 100, 100);
+
+  const year = new Date().getFullYear();
+  document.querySelector("#carYearLabel").textContent = String(year);
+  document.querySelector("#carExpenseTotal").textContent = formatMoney(expenseTotal);
+  document.querySelector("#carExpenseCount").textContent = `${expenseEntries.length} ${expenseEntries.length === 1 ? "entry" : "entries"}`;
+  document.querySelector("#carIncomeTotal").textContent = formatMoney(incomeTotal);
+  document.querySelector("#carIncomeCount").textContent = `${incomeEntries.length} ${incomeEntries.length === 1 ? "entry" : "entries"}`;
+  document.querySelector("#carNetTotal").textContent = formatMoney(netTotal);
+  document.querySelector("#carMileage").textContent = fuelMetrics.averageMileage ? `${formatMileage(fuelMetrics.averageMileage)} km/l` : "—";
+  document.querySelector("#carMileageCount").textContent = `${fuelEntries.length} fuel ${fuelEntries.length === 1 ? "entry" : "entries"}`;
+  document.querySelector("#carProgressPercent").textContent = `${Math.round(yearlyProgress)}%`;
+  document.querySelector("#carProgressRing").style.background = `conic-gradient(var(--blue) ${yearlyProgress * 3.6}deg, #eadfce 0deg)`;
+  document.querySelector("#carPaceMessage").textContent = fuelMetrics.latestFuelPrice || fuelMetrics.averageMileage
+    ? [
+        fuelMetrics.latestFuelPrice ? `Latest fuel price is ${formatRupeeDecimal(fuelMetrics.latestFuelPrice)} per litre.` : null,
+        fuelMetrics.averageMileage ? `Average mileage is ${formatMileage(fuelMetrics.averageMileage)} km/l.` : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : "Add petrol entries with odometer and liters to calculate mileage and price per litre.";
+  carFuelPriceLabel.textContent = fuelMetrics.latestFuelPrice ? formatRupeeDecimal(fuelMetrics.latestFuelPrice) : "—";
+
+  renderCarTable(visibleEntries);
+  renderFuelTable(fuelEntries);
+  drawCarChart(grouped);
+}
+
 function renderGroupSelector() {
   activeGroupSelect.innerHTML =
     groups.length === 0
@@ -520,6 +765,46 @@ function renderGroupExpenseTable(group) {
     .join("");
 
   groupEmptyState.classList.toggle("is-visible", group.expenses.length === 0);
+}
+
+function renderCarTable(rows) {
+  carTable.innerHTML = rows
+    .map(
+      (entry) => `
+        <tr>
+          <td>${formatDate(entry.date)}</td>
+          <td>${escapeHtml(entry.description)}</td>
+          <td><span class="pill" style="background:${hexToSoft(entry.type === "Income" ? categories["Petrol Sharing"] : categories[entry.category] || categories.Other)}">${escapeHtml(entry.type)}</span></td>
+          <td>${escapeHtml(entry.category)}</td>
+          <td class="amount-cell ${entry.type === "Income" ? "income-cell" : ""}">${formatMoney(entry.amount)}</td>
+          <td><button class="row-action" type="button" data-id="${entry.id}" title="Delete car entry" aria-label="Delete car entry">x</button></td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  carEmptyState.classList.toggle("is-visible", rows.length === 0);
+}
+
+function renderFuelTable(fuelEntries) {
+  const enriched = enrichFuelEntries(fuelEntries).reverse();
+  fuelTable.innerHTML = enriched
+    .map(
+      (entry) => `
+        <tr>
+          <td>${formatDate(entry.date)}</td>
+          <td>${escapeHtml(entry.description)}</td>
+          <td>${entry.odometerKm != null ? escapeHtml(formatNumber(entry.odometerKm)) : "—"}</td>
+          <td>${entry.liters != null ? escapeHtml(formatDecimal(entry.liters)) : "—"}</td>
+          <td>${entry.pricePerLiter != null ? formatRupeeDecimal(entry.pricePerLiter) : "—"}</td>
+          <td>${entry.mileage != null ? `${formatMileage(entry.mileage)} km/l` : "—"}</td>
+          <td class="amount-cell">${formatMoney(entry.amount)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  fuelEmptyState.classList.toggle("is-visible", enriched.length === 0);
 }
 
 function renderBalances(group) {
@@ -594,6 +879,15 @@ function drawGroupChart(grouped) {
   });
 }
 
+function drawCarChart(grouped) {
+  drawBarChart({
+    context: carCtx,
+    targetCanvas: carCanvas,
+    grouped,
+    emptyText: "Add car expenses to build this yearly dashboard.",
+  });
+}
+
 function drawChart(grouped) {
   drawBarChart({
     context: ctx,
@@ -660,6 +954,20 @@ function getVisibleExpenses() {
   });
 }
 
+function getVisibleCarEntries() {
+  const query = carSearchInput.value.trim().toLowerCase();
+  const selectedCategory = carFilterInput.value;
+
+  return getCurrentYearCarEntries().filter((entry) => {
+    const matchesCategory = selectedCategory === "All" || entry.category === selectedCategory;
+    const matchesQuery = [entry.description, entry.category, entry.type, entry.date]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+    return matchesCategory && matchesQuery;
+  });
+}
+
 function getCurrentMonthExpenses(rows) {
   const now = new Date();
   return rows.filter((expense) => {
@@ -676,11 +984,78 @@ function groupByCategory(rows) {
   }, {});
 }
 
+function groupByCarCategory(rows) {
+  return rows.reduce((acc, entry) => {
+    const category = entry.category || "Other";
+    acc[category] = (acc[category] || 0) + entry.amount;
+    return acc;
+  }, {});
+}
+
 function paidByMember(group) {
   return group.expenses.reduce((acc, expense) => {
     acc[expense.paidBy] = (acc[expense.paidBy] || 0) + expense.amount;
     return acc;
   }, {});
+}
+
+function getCurrentYearCarEntries() {
+  const now = new Date();
+  return carEntries.filter((entry) => {
+    const date = new Date(`${entry.date}T00:00:00`);
+    return date.getFullYear() === now.getFullYear();
+  });
+}
+
+function sortCarEntriesChronologically(entries) {
+  return [...entries].sort((a, b) => {
+    const dateDelta = new Date(`${a.date}T00:00:00`).getTime() - new Date(`${b.date}T00:00:00`).getTime();
+    if (dateDelta !== 0) return dateDelta;
+    const aCreated = Number.isFinite(new Date(a.createdAt || 0).getTime()) ? new Date(a.createdAt || 0).getTime() : 0;
+    const bCreated = Number.isFinite(new Date(b.createdAt || 0).getTime()) ? new Date(b.createdAt || 0).getTime() : 0;
+    return aCreated - bCreated;
+  });
+}
+
+function enrichFuelEntries(entries) {
+  const ordered = sortCarEntriesChronologically(entries);
+  return ordered.map((entry, index) => {
+    const previous = ordered[index - 1];
+    const pricePerLiter = entry.liters ? entry.amount / entry.liters : entry.fuelPricePerLiter || null;
+    const mileage =
+      previous &&
+      previous.odometerKm != null &&
+      entry.odometerKm != null &&
+      entry.liters &&
+      entry.odometerKm > previous.odometerKm
+        ? (entry.odometerKm - previous.odometerKm) / entry.liters
+        : null;
+
+    return {
+      ...entry,
+      pricePerLiter,
+      mileage,
+      previousOdometerKm: previous?.odometerKm ?? null,
+    };
+  });
+}
+
+function calculateFuelMetrics(entries) {
+  const enriched = enrichFuelEntries(entries);
+  const mileageValues = enriched.map((entry) => entry.mileage).filter((value) => Number.isFinite(value) && value > 0);
+  const latestFuel = [...enriched].reverse().find((entry) => entry.pricePerLiter != null || entry.liters != null) || null;
+  const averageMileage = mileageValues.length
+    ? mileageValues.reduce((total, value) => total + value, 0) / mileageValues.length
+    : null;
+  const latestFuelPrice = latestFuel?.pricePerLiter ?? null;
+
+  return {
+    averageMileage,
+    latestFuelPrice,
+    latestFuel,
+    mileageValues,
+    entries: enriched,
+  };
 }
 
 function getActiveGroup() {
@@ -689,6 +1064,88 @@ function getActiveGroup() {
 
 function getMemberName(group, memberId) {
   return group.members.find((member) => member.id === memberId)?.name || "Unknown";
+}
+
+async function refreshCarFromCloud(preferredEntryId = null, syncLocal = true) {
+  if (!USE_SUPABASE_CAR) return;
+
+  const localEntries = [...carEntries];
+  let cloudEntries = await fetchCloudCarEntries();
+  const cloudIds = new Set(cloudEntries.map((entry) => entry.id));
+  const unsyncedLocalEntries = localEntries.filter((entry) => !cloudIds.has(entry.id));
+
+  if (syncLocal && cloudEntries.length === 0 && localEntries.length > 0) {
+    await syncLocalCarEntriesToCloud(localEntries);
+    cloudEntries = await fetchCloudCarEntries();
+  } else if (syncLocal && unsyncedLocalEntries.length > 0) {
+    await syncLocalCarEntriesToCloud(unsyncedLocalEntries);
+    cloudEntries = await fetchCloudCarEntries();
+  }
+
+  carEntries = cloudEntries;
+  saveCarEntries();
+  if (preferredEntryId) {
+    const targetExists = carEntries.some((entry) => entry.id === preferredEntryId);
+    if (!targetExists) {
+      carEntries = cloudEntries;
+    }
+  }
+  renderCar();
+}
+
+async function fetchCloudCarEntries() {
+  const rows = await supabaseRequest("car_entries?select=*&order=created_at.desc");
+  return rows.map((row) => ({
+    id: row.id,
+    type: row.type,
+    category: row.category,
+    description: row.description,
+    amount: Number(row.amount),
+    date: row.entry_date,
+    odometerKm: row.odometer_km != null ? Number(row.odometer_km) : null,
+    liters: row.liters != null ? Number(row.liters) : null,
+    fuelPricePerLiter: row.fuel_price_per_liter != null ? Number(row.fuel_price_per_liter) : null,
+    createdAt: row.created_at,
+  }));
+}
+
+async function createCloudCarEntry(entry) {
+  const rows = await supabaseRequest("car_entries", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      id: entry.id,
+      type: entry.type,
+      category: entry.category,
+      description: entry.description,
+      amount: entry.amount,
+      entry_date: entry.date,
+      odometer_km: entry.odometerKm,
+      liters: entry.liters,
+      fuel_price_per_liter: entry.fuelPricePerLiter,
+      created_at: entry.createdAt,
+    }),
+  });
+  return rows[0];
+}
+
+async function deleteCloudCarEntry(entryId) {
+  await supabaseRequest(`car_entries?id=eq.${encodeURIComponent(entryId)}`, {
+    method: "DELETE",
+  });
+}
+
+async function clearCloudCarEntries() {
+  await supabaseRequest("car_entries", {
+    method: "DELETE",
+  });
+}
+
+async function syncLocalCarEntriesToCloud(entries) {
+  if (!entries.length) return;
+  for (const entry of entries) {
+    await createCloudCarEntry(entry);
+  }
 }
 
 async function refreshGroupsFromCloud(preferredGroupId = activeGroupId) {
@@ -832,6 +1289,10 @@ function saveGroups() {
   localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
 }
 
+function saveCarEntries() {
+  localStorage.setItem(CAR_KEY, JSON.stringify(carEntries));
+}
+
 function readJson(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
@@ -852,6 +1313,31 @@ function toCsv(rows) {
   const header = ["Date", "Description", "Category", "Method", "Amount"];
   const body = rows.map((expense) =>
     [expense.date, expense.description, expense.category, expense.method, expense.amount]
+      .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+      .join(","),
+  );
+  return [header.join(","), ...body].join("\n");
+}
+
+function toCarCsv(rows) {
+  const fuelMap = new Map(
+    calculateFuelMetrics(
+      sortCarEntriesChronologically(rows.filter((entry) => entry.type === "Expense" && entry.category === "Petrol")),
+    ).entries.map((entry) => [entry.id, entry]),
+  );
+  const header = ["Date", "Description", "Type", "Category", "Odometer KM", "Liters", "Fuel Price/Litre", "Mileage", "Amount"];
+  const body = rows.map((entry) =>
+    [
+      entry.date,
+      entry.description,
+      entry.type,
+      entry.category,
+      entry.odometerKm ?? "",
+      entry.liters ?? "",
+      fuelMap.get(entry.id)?.pricePerLiter ?? entry.fuelPricePerLiter ?? "",
+      fuelMap.get(entry.id)?.mileage ?? "",
+      entry.amount,
+    ]
       .map((value) => `"${String(value).replaceAll('"', '""')}"`)
       .join(","),
   );
@@ -880,6 +1366,31 @@ function formatMoney(value) {
   }).format(value || 0);
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}
+
+function formatDecimal(value) {
+  return new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 1,
+  }).format(value || 0);
+}
+
+function formatMileage(value) {
+  return new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 1,
+  }).format(value || 0);
+}
+
+function formatRupeeDecimal(value) {
+  return `₹${new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value || 0)}`;
+}
+
 function formatDate(value) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", {
     day: "2-digit",
@@ -902,6 +1413,27 @@ function dateToISO(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function parseOptionalNumber(value) {
+  if (value === "" || value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getFuelPricePerLiter(amountValue, litersValue) {
+  const amount = Number(amountValue);
+  const liters = Number(litersValue);
+  if (!Number.isFinite(amount) || !Number.isFinite(liters) || liters <= 0) return null;
+  return amount / liters;
+}
+
+function resetCarFormDefaults() {
+  carDateInput.value = todayISO();
+  carTypeInput.value = "Expense";
+  carCategoryInput.value = "Petrol";
+  carOdometerInput.value = "";
+  carLitersInput.value = "";
 }
 
 function getPaceMessage(progress, daysLeft) {
@@ -940,10 +1472,16 @@ function roundedRect(context, x, y, width, height, radius) {
 window.addEventListener("resize", () => {
   drawChart(groupByCategory(getCurrentMonthExpenses(expenses)));
   drawGroupChart(groupByCategory(getActiveGroup()?.expenses || []));
+  drawCarChart(groupByCarCategory(getCurrentYearCarEntries().filter((entry) => entry.type === "Expense")));
 });
 
 renderPersonal();
 renderGroups();
+renderCar();
+refreshCarFromCloud().catch((error) => {
+  console.error(error);
+  alert("Could not load car entries from Supabase. Check that you ran the car schema migration.");
+});
 refreshGroupsFromCloud().catch((error) => {
   console.error(error);
   alert("Could not load shared groups from Supabase. Check that you ran the SQL schema in Supabase.");

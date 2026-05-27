@@ -13,13 +13,14 @@
           <span class="brand-mark" aria-hidden="true">₹</span>
           <div>
             <p class="eyebrow">ExpenseSplit</p>
-            <h1>Daily and Group Expenses</h1>
+            <h1>Daily, Group and Car Expenses</h1>
           </div>
         </div>
 
         <nav class="tab-nav" aria-label="App sections">
           <button class="tab-button is-active" type="button" data-tab="personal">Personal</button>
           <button class="tab-button" type="button" data-tab="groups">Groups</button>
+          <button class="tab-button" type="button" data-tab="car">Car</button>
         </nav>
 
         <section class="panel quick-entry tab-panel is-active" id="personalEntryPanel" aria-labelledby="entry-title">
@@ -113,6 +114,67 @@
               <input id="memberNameInput" type="text" placeholder="Friend name" required />
             </label>
             <button class="secondary-button" type="submit">Add Person</button>
+          </form>
+        </section>
+
+        <section class="panel tab-panel" id="carEntryPanel" aria-labelledby="car-entry-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Car Log</p>
+              <h2 id="car-entry-title">Add Car Entry</h2>
+            </div>
+            <button class="icon-button" type="button" id="seedCarDemoButton" title="Load car demo data" aria-label="Load car demo data">
+              <span aria-hidden="true">↻</span>
+            </button>
+          </div>
+
+          <form id="carForm">
+            <label>
+              <span>Type</span>
+              <select id="carTypeInput" required>
+                <option value="Expense">Expense</option>
+                <option value="Income">Income</option>
+              </select>
+            </label>
+            <label>
+              <span>Category</span>
+              <select id="carCategoryInput" required>
+                <option value="Petrol">Petrol</option>
+                <option value="Petrol Sharing">Petrol Sharing</option>
+                <option value="Service">Service</option>
+                <option value="Insurance">Insurance</option>
+                <option value="PUCC">PUCC</option>
+                <option value="Repair">Repair</option>
+                <option value="Toll">Toll</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+            <label>
+              <span>Description</span>
+              <input id="carDescriptionInput" type="text" placeholder="Fuel refill, ride share, service..." required />
+            </label>
+            <label>
+              <span>Amount</span>
+              <input id="carAmountInput" type="number" min="1" step="0.01" placeholder="500" required />
+            </label>
+            <div class="form-grid">
+              <label>
+                <span>Odometer KM (optional)</span>
+                <input id="carOdometerInput" type="number" min="0" step="0.1" placeholder="45210" />
+              </label>
+              <label>
+                <span>Liters (optional)</span>
+                <input id="carLitersInput" type="number" min="0" step="0.01" placeholder="35" />
+              </label>
+            </div>
+            <label>
+              <span>Date</span>
+              <input id="carDateInput" type="date" required />
+            </label>
+            <button class="primary-button" type="submit">
+              <span aria-hidden="true">＋</span>
+              Add Car Entry
+            </button>
           </form>
         </section>
 
@@ -232,6 +294,137 @@
               <tbody id="expenseTable"></tbody>
             </table>
             <p class="empty-state" id="emptyState">No expenses yet. Add your first entry from the left panel.</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="dashboard page-section" id="carPage" aria-label="Car expenses dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Vehicle Ledger</p>
+            <h2>Car expenses and sharing income</h2>
+          </div>
+          <div class="topbar-actions">
+            <div class="search-wrap">
+              <span aria-hidden="true">⌕</span>
+              <input id="carSearchInput" type="search" placeholder="Search car entries" />
+            </div>
+            <button class="secondary-button" type="button" id="exportCarButton">Export CSV</button>
+          </div>
+        </header>
+
+        <section class="stats-grid" aria-label="Car totals">
+          <article class="stat-card accent-green">
+            <p>Total Expense This Year</p>
+            <strong id="carExpenseTotal">₹0</strong>
+            <span id="carExpenseCount">0 entries</span>
+          </article>
+          <article class="stat-card accent-blue">
+            <p>Petrol Sharing Income</p>
+            <strong id="carIncomeTotal">₹0</strong>
+            <span id="carIncomeCount">0 entries</span>
+          </article>
+          <article class="stat-card accent-coral">
+            <p>Net Car Cost</p>
+            <strong id="carNetTotal">₹0</strong>
+            <span>expense minus income</span>
+          </article>
+          <article class="stat-card accent-ink">
+            <p>Average Mileage</p>
+            <strong id="carMileage">0 km/l</strong>
+            <span id="carMileageCount">0 fuel entries</span>
+          </article>
+        </section>
+
+        <section class="content-grid car-content-grid">
+          <article class="panel chart-panel" aria-labelledby="car-chart-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Yearly Breakdown</p>
+                <h2 id="car-chart-title">By Car Category</h2>
+              </div>
+              <select id="carFilterInput" aria-label="Filter car category">
+                <option value="All">All categories</option>
+                <option value="Petrol">Petrol</option>
+                <option value="Petrol Sharing">Petrol Sharing</option>
+                <option value="Service">Service</option>
+                <option value="Insurance">Insurance</option>
+                <option value="PUCC">PUCC</option>
+                <option value="Repair">Repair</option>
+                <option value="Toll">Toll</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <canvas id="carCategoryCanvas" width="760" height="360" aria-label="Car category bar chart"></canvas>
+          </article>
+
+          <article class="panel insight-panel" aria-labelledby="car-insight-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Year</p>
+                <h2 id="car-insight-title">Current Year Snapshot</h2>
+              </div>
+            </div>
+            <div class="progress-ring" id="carProgressRing" aria-hidden="true">
+              <span id="carProgressPercent">0%</span>
+            </div>
+            <p id="carPaceMessage">Track your car spending and petrol-sharing income through the year.</p>
+            <div class="mini-metrics">
+              <span><strong id="carYearLabel">2026</strong> year</span>
+              <span><strong id="carFuelPriceLabel">₹0</strong> price/litre</span>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="fuel-table-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Fuel Log</p>
+              <h2 id="fuel-table-title">Mileage and Fuel Price</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>KM</th>
+                  <th>Liters</th>
+                  <th>Price/Litre</th>
+                  <th>Mileage</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody id="fuelTable"></tbody>
+            </table>
+            <p class="empty-state" id="fuelEmptyState">Add petrol entries with odometer and liters to see mileage.</p>
+          </div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="car-table-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Car Ledger</p>
+              <h2 id="car-table-title">Recent Car Entries</h2>
+            </div>
+            <button class="danger-button" type="button" id="clearCarButton">Clear All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Type</th>
+                  <th>Category</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="carTable"></tbody>
+            </table>
+            <p class="empty-state" id="carEmptyState">Add car expenses or petrol-sharing income to build this dashboard.</p>
           </div>
         </section>
       </section>

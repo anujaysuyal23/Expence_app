@@ -54,3 +54,23 @@ create policy "prototype read participants" on public.group_expense_participants
 create policy "prototype insert participants" on public.group_expense_participants for insert with check (true);
 create policy "prototype update participants" on public.group_expense_participants for update using (true);
 create policy "prototype delete participants" on public.group_expense_participants for delete using (true);
+
+create table public.car_entries (
+  id uuid primary key default gen_random_uuid(),
+  type text not null check (type in ('Expense', 'Income')),
+  category text not null,
+  description text not null,
+  amount numeric(12, 2) not null check (amount >= 0),
+  entry_date date not null default current_date,
+  odometer_km numeric(12, 2),
+  liters numeric(12, 2),
+  fuel_price_per_liter numeric(12, 2),
+  created_at timestamptz not null default now()
+);
+
+alter table public.car_entries enable row level security;
+
+create policy "prototype read car entries" on public.car_entries for select using (true);
+create policy "prototype insert car entries" on public.car_entries for insert with check (true);
+create policy "prototype update car entries" on public.car_entries for update using (true);
+create policy "prototype delete car entries" on public.car_entries for delete using (true);
