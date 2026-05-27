@@ -43,4 +43,4 @@ For a simple public link, deploy the folder to Vercel or Netlify:
 3. Keep the build command empty.
 4. Use `/` or the project root as the publish directory.
 
-For real sharing across 2-3 people, create a free Supabase project and run `supabase-schema.sql` in the SQL editor. The app currently uses local browser storage; the next step is wiring this UI to your Supabase URL and anon key so all users see the same group data.
+For real sharing across 2-3 people, create a free Supabase project and run `supabase-schema.sql` in the SQL editor. The Groups tab is wired to Supabase in `app.js`; personal expenses still stay private in each browser.

@@ -1,6 +1,9 @@
 const STORAGE_KEY = "daily-expenses-report:v1";
 const BUDGET_KEY = "daily-expenses-report:budget";
 const GROUPS_KEY = "expense-split:groups:v1";
+const SUPABASE_REST_URL = "https://lmdjblewkuaraqrpgpws.supabase.co/rest/v1";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ux2-Xg0drJchEU0OTmAnQA_MKdcZ1gn";
+const USE_SUPABASE_GROUPS = true;
 
 const categories = {
   Food: "#177a5b",
@@ -132,17 +135,29 @@ tableBody.addEventListener("click", (event) => {
   renderPersonal();
 });
 
-groupForm.addEventListener("submit", (event) => {
+groupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.querySelector("#groupNameInput").value.trim();
   if (!name) return;
 
-  const group = { id: createId(), name, members: [], expenses: [] };
-  groups = [group, ...groups];
-  activeGroupId = group.id;
-  groupForm.reset();
-  saveGroups();
-  renderGroups();
+  try {
+    if (USE_SUPABASE_GROUPS) {
+      const group = await createCloudGroup(name);
+      activeGroupId = group.id;
+      groupForm.reset();
+      await refreshGroupsFromCloud(group.id);
+      return;
+    }
+
+    const group = { id: createId(), name, members: [], expenses: [] };
+    groups = [group, ...groups];
+    activeGroupId = group.id;
+    groupForm.reset();
+    saveGroups();
+    renderGroups();
+  } catch (error) {
+    alert(`Could not create group: ${error.message}`);
+  }
 });
 
 activeGroupSelect.addEventListener("change", () => {
@@ -150,19 +165,30 @@ activeGroupSelect.addEventListener("change", () => {
   renderGroups();
 });
 
-memberForm.addEventListener("submit", (event) => {
+memberForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const group = getActiveGroup();
   const name = memberNameInput.value.trim();
   if (!group || !name) return;
 
-  group.members.push({ id: createId(), name });
-  memberForm.reset();
-  saveGroups();
-  renderGroups();
+  try {
+    if (USE_SUPABASE_GROUPS) {
+      await createCloudMember(group.id, name);
+      memberForm.reset();
+      await refreshGroupsFromCloud(group.id);
+      return;
+    }
+
+    group.members.push({ id: createId(), name });
+    memberForm.reset();
+    saveGroups();
+    renderGroups();
+  } catch (error) {
+    alert(`Could not add person: ${error.message}`);
+  }
 });
 
-groupExpenseForm.addEventListener("submit", (event) => {
+groupExpenseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const group = getActiveGroup();
   if (!group) return;
@@ -173,60 +199,108 @@ groupExpenseForm.addEventListener("submit", (event) => {
     return;
   }
 
-  group.expenses = [
-    {
-      id: createId(),
-      description: groupExpenseDescriptionInput.value.trim(),
-      amount: Number(groupExpenseAmountInput.value),
-      category: groupExpenseCategoryInput.value,
-      paidBy: groupPaidByInput.value,
-      participantIds,
-      date: groupExpenseDateInput.value,
-    },
-    ...group.expenses,
-  ];
+  const expense = {
+    id: createId(),
+    description: groupExpenseDescriptionInput.value.trim(),
+    amount: Number(groupExpenseAmountInput.value),
+    category: groupExpenseCategoryInput.value,
+    paidBy: groupPaidByInput.value,
+    participantIds,
+    date: groupExpenseDateInput.value,
+  };
 
-  groupExpenseForm.reset();
-  groupExpenseDateInput.value = todayISO();
-  groupExpenseCategoryInput.value = "Food";
-  saveGroups();
-  renderGroups();
+  try {
+    if (USE_SUPABASE_GROUPS) {
+      await createCloudGroupExpense(group.id, expense);
+      groupExpenseForm.reset();
+      groupExpenseDateInput.value = todayISO();
+      groupExpenseCategoryInput.value = "Food";
+      await refreshGroupsFromCloud(group.id);
+      return;
+    }
+
+    group.expenses = [
+      {
+        ...expense,
+        id: createId(),
+      },
+      ...group.expenses,
+    ];
+
+    groupExpenseForm.reset();
+    groupExpenseDateInput.value = todayISO();
+    groupExpenseCategoryInput.value = "Food";
+    saveGroups();
+    renderGroups();
+  } catch (error) {
+    alert(`Could not add group expense: ${error.message}`);
+  }
 });
 
-groupExpenseTable.addEventListener("click", (event) => {
+groupExpenseTable.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-id]");
   const group = getActiveGroup();
   if (!button || !group) return;
 
-  group.expenses = group.expenses.filter((expense) => expense.id !== button.dataset.id);
-  saveGroups();
-  renderGroups();
+  try {
+    if (USE_SUPABASE_GROUPS) {
+      await deleteCloudGroupExpense(button.dataset.id);
+      await refreshGroupsFromCloud(group.id);
+      return;
+    }
+
+    group.expenses = group.expenses.filter((expense) => expense.id !== button.dataset.id);
+    saveGroups();
+    renderGroups();
+  } catch (error) {
+    alert(`Could not delete expense: ${error.message}`);
+  }
 });
 
-document.querySelector("#clearGroupExpensesButton").addEventListener("click", () => {
+document.querySelector("#clearGroupExpensesButton").addEventListener("click", async () => {
   const group = getActiveGroup();
   if (!group || !group.expenses.length) return;
 
   if (confirm("Clear all expenses for this group after settlement?")) {
-    group.expenses = [];
-    saveGroups();
-    renderGroups();
+    try {
+      if (USE_SUPABASE_GROUPS) {
+        await clearCloudGroupExpenses(group.id);
+        await refreshGroupsFromCloud(group.id);
+        return;
+      }
+
+      group.expenses = [];
+      saveGroups();
+      renderGroups();
+    } catch (error) {
+      alert(`Could not settle group: ${error.message}`);
+    }
   }
 });
 
-document.querySelector("#deleteGroupButton").addEventListener("click", () => {
+document.querySelector("#deleteGroupButton").addEventListener("click", async () => {
   const group = getActiveGroup();
   if (!group) return;
 
   if (confirm(`Delete "${group.name}" and all its members and expenses?`)) {
-    groups = groups.filter((item) => item.id !== group.id);
-    activeGroupId = groups[0]?.id || "";
-    saveGroups();
-    renderGroups();
+    try {
+      if (USE_SUPABASE_GROUPS) {
+        await deleteCloudGroup(group.id);
+        await refreshGroupsFromCloud("");
+        return;
+      }
+
+      groups = groups.filter((item) => item.id !== group.id);
+      activeGroupId = groups[0]?.id || "";
+      saveGroups();
+      renderGroups();
+    } catch (error) {
+      alert(`Could not delete group: ${error.message}`);
+    }
   }
 });
 
-document.querySelector("#seedGroupDemoButton").addEventListener("click", () => {
+document.querySelector("#seedGroupDemoButton").addEventListener("click", async () => {
   const anujay = { id: createId(), name: "Anujay" };
   const friend1 = { id: createId(), name: "Friend 1" };
   const friend2 = { id: createId(), name: "Friend 2" };
@@ -256,10 +330,43 @@ document.querySelector("#seedGroupDemoButton").addEventListener("click", () => {
     ],
   };
 
-  groups = [group, ...groups];
-  activeGroupId = group.id;
-  saveGroups();
-  renderGroups();
+  try {
+    if (USE_SUPABASE_GROUPS) {
+      const cloudGroup = await createCloudGroup(group.name);
+      const cloudMembers = [];
+      for (const member of group.members) {
+        cloudMembers.push(await createCloudMember(cloudGroup.id, member.name));
+      }
+
+      const idByName = Object.fromEntries(cloudMembers.map((member) => [member.name, member.id]));
+      await createCloudGroupExpense(cloudGroup.id, {
+        description: "Dinner",
+        amount: 1200,
+        category: "Food",
+        paidBy: idByName.Anujay,
+        participantIds: [idByName.Anujay, idByName["Friend 1"], idByName["Friend 2"]],
+        date: todayISO(),
+      });
+      await createCloudGroupExpense(cloudGroup.id, {
+        description: "Cab",
+        amount: 600,
+        category: "Travel",
+        paidBy: idByName["Friend 1"],
+        participantIds: [idByName.Anujay, idByName["Friend 1"], idByName["Friend 2"]],
+        date: todayISO(),
+      });
+      activeGroupId = cloudGroup.id;
+      await refreshGroupsFromCloud(cloudGroup.id);
+      return;
+    }
+
+    groups = [group, ...groups];
+    activeGroupId = group.id;
+    saveGroups();
+    renderGroups();
+  } catch (error) {
+    alert(`Could not load group demo: ${error.message}`);
+  }
 });
 
 function setActiveTab(tab) {
@@ -579,6 +686,140 @@ function getMemberName(group, memberId) {
   return group.members.find((member) => member.id === memberId)?.name || "Unknown";
 }
 
+async function refreshGroupsFromCloud(preferredGroupId = activeGroupId) {
+  if (!USE_SUPABASE_GROUPS) return;
+
+  groups = await fetchCloudGroups();
+  activeGroupId = groups.some((group) => group.id === preferredGroupId) ? preferredGroupId : groups[0]?.id || "";
+  saveGroups();
+  renderGroups();
+}
+
+async function fetchCloudGroups() {
+  const [groupRows, memberRows, expenseRows, participantRows] = await Promise.all([
+    supabaseRequest("groups?select=*&order=created_at.desc"),
+    supabaseRequest("group_members?select=*&order=created_at.asc"),
+    supabaseRequest("group_expenses?select=*&order=created_at.desc"),
+    supabaseRequest("group_expense_participants?select=*"),
+  ]);
+
+  const membersByGroup = memberRows.reduce((acc, row) => {
+    acc[row.group_id] ||= [];
+    acc[row.group_id].push({ id: row.id, name: row.name });
+    return acc;
+  }, {});
+
+  const participantsByExpense = participantRows.reduce((acc, row) => {
+    acc[row.expense_id] ||= [];
+    acc[row.expense_id].push(row.member_id);
+    return acc;
+  }, {});
+
+  const expensesByGroup = expenseRows.reduce((acc, row) => {
+    acc[row.group_id] ||= [];
+    acc[row.group_id].push({
+      id: row.id,
+      description: row.description,
+      amount: Number(row.amount),
+      category: row.category || "Other",
+      paidBy: row.paid_by,
+      participantIds: participantsByExpense[row.id] || [],
+      date: row.expense_date,
+    });
+    return acc;
+  }, {});
+
+  return groupRows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    members: membersByGroup[row.id] || [],
+    expenses: expensesByGroup[row.id] || [],
+  }));
+}
+
+async function createCloudGroup(name) {
+  const rows = await supabaseRequest("groups", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ name }),
+  });
+  return rows[0];
+}
+
+async function createCloudMember(groupId, name) {
+  const rows = await supabaseRequest("group_members", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ group_id: groupId, name }),
+  });
+  return { id: rows[0].id, name: rows[0].name };
+}
+
+async function createCloudGroupExpense(groupId, expense) {
+  const rows = await supabaseRequest("group_expenses", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      group_id: groupId,
+      description: expense.description,
+      category: expense.category || "Other",
+      amount: expense.amount,
+      paid_by: expense.paidBy,
+      expense_date: expense.date,
+    }),
+  });
+  const cloudExpense = rows[0];
+  const participantRows = expense.participantIds.map((memberId) => ({
+    expense_id: cloudExpense.id,
+    member_id: memberId,
+  }));
+
+  await supabaseRequest("group_expense_participants", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(participantRows),
+  });
+}
+
+async function deleteCloudGroupExpense(expenseId) {
+  await supabaseRequest(`group_expenses?id=eq.${encodeURIComponent(expenseId)}`, {
+    method: "DELETE",
+  });
+}
+
+async function clearCloudGroupExpenses(groupId) {
+  await supabaseRequest(`group_expenses?group_id=eq.${encodeURIComponent(groupId)}`, {
+    method: "DELETE",
+  });
+}
+
+async function deleteCloudGroup(groupId) {
+  await supabaseRequest(`groups?id=eq.${encodeURIComponent(groupId)}`, {
+    method: "DELETE",
+  });
+}
+
+async function supabaseRequest(path, options = {}) {
+  const response = await fetch(`${SUPABASE_REST_URL}/${path}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || `Supabase request failed with ${response.status}`);
+  }
+
+  if (response.status === 204) return [];
+  const text = await response.text();
+  return text ? JSON.parse(text) : [];
+}
+
 function savePersonalExpenses() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
 }
@@ -699,3 +940,7 @@ window.addEventListener("resize", () => {
 
 renderPersonal();
 renderGroups();
+refreshGroupsFromCloud().catch((error) => {
+  console.error(error);
+  alert("Could not load shared groups from Supabase. Check that you ran the SQL schema in Supabase.");
+});
