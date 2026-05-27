@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ExpenseSplit</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Expense controls">
+        <div class="brand-block">
+          <span class="brand-mark" aria-hidden="true">₹</span>
+          <div>
+            <p class="eyebrow">ExpenseSplit</p>
+            <h1>Daily and Group Expenses</h1>
+          </div>
+        </div>
+
+        <nav class="tab-nav" aria-label="App sections">
+          <button class="tab-button is-active" type="button" data-tab="personal">Personal</button>
+          <button class="tab-button" type="button" data-tab="groups">Groups</button>
+        </nav>
+
+        <section class="panel quick-entry tab-panel is-active" id="personalEntryPanel" aria-labelledby="entry-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Evening Entry</p>
+              <h2 id="entry-title">Add Expense</h2>
+            </div>
+            <button class="icon-button" type="button" id="seedDemoButton" title="Load demo data" aria-label="Load demo data">
+              <span aria-hidden="true">↻</span>
+            </button>
+          </div>
+
+          <form id="expenseForm">
+            <label>
+              <span>Amount</span>
+              <input id="amountInput" type="number" min="1" step="0.01" placeholder="450" required />
+            </label>
+
+            <label>
+              <span>Category</span>
+              <select id="categoryInput" required>
+                <option value="Food">Food</option>
+                <option value="Travel">Travel</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Bills">Bills</option>
+                <option value="Health">Health</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Education">Education</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Description</span>
+              <input id="descriptionInput" type="text" placeholder="Dinner, cab, groceries..." required />
+            </label>
+
+            <div class="form-grid">
+              <label>
+                <span>Date</span>
+                <input id="dateInput" type="date" required />
+              </label>
+              <label>
+                <span>Paid By</span>
+                <select id="methodInput">
+                  <option value="UPI">UPI</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="Bank">Bank</option>
+                </select>
+              </label>
+            </div>
+
+            <button class="primary-button" type="submit">
+              <span aria-hidden="true">＋</span>
+              Add to Report
+            </button>
+          </form>
+        </section>
+
+        <section class="panel tab-panel" id="groupEntryPanel" aria-labelledby="group-entry-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Splitwise Style</p>
+              <h2 id="group-entry-title">Group Setup</h2>
+            </div>
+          </div>
+
+          <form id="groupForm">
+            <label>
+              <span>Group Name</span>
+              <input id="groupNameInput" type="text" placeholder="Goa trip, flat, lunch..." required />
+            </label>
+            <button class="primary-button" type="submit">
+              <span aria-hidden="true">＋</span>
+              Create Group
+            </button>
+          </form>
+
+          <hr class="divider" />
+
+          <label>
+            <span>Active Group</span>
+            <select id="activeGroupSelect"></select>
+          </label>
+
+          <form id="memberForm" class="stacked-form">
+            <label>
+              <span>Add Person</span>
+              <input id="memberNameInput" type="text" placeholder="Friend name" required />
+            </label>
+            <button class="secondary-button" type="submit">Add Person</button>
+          </form>
+        </section>
+
+        <section class="panel budget-panel tab-panel is-active" id="budgetPanel" aria-labelledby="budget-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Control</p>
+              <h2 id="budget-title">Monthly Budget</h2>
+            </div>
+            <output id="budgetOutput">₹25,000</output>
+          </div>
+          <input id="budgetInput" type="range" min="5000" max="100000" step="1000" value="25000" aria-label="Monthly budget" />
+          <div class="budget-track" aria-hidden="true">
+            <span id="budgetFill"></span>
+          </div>
+        </section>
+      </aside>
+
+      <section class="dashboard page-section is-active" id="personalPage" aria-label="Personal expenses dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="currentMonthLabel">This Month</p>
+            <h2>Spend with clarity</h2>
+          </div>
+          <div class="topbar-actions">
+            <div class="search-wrap">
+              <span aria-hidden="true">⌕</span>
+              <input id="searchInput" type="search" placeholder="Search expenses" />
+            </div>
+            <button class="secondary-button" type="button" id="exportButton">Export CSV</button>
+          </div>
+        </header>
+
+        <section class="stats-grid" aria-label="Key totals">
+          <article class="stat-card accent-green">
+            <p>Today</p>
+            <strong id="todayTotal">₹0</strong>
+            <span id="todayCount">0 entries</span>
+          </article>
+          <article class="stat-card accent-blue">
+            <p>This Month</p>
+            <strong id="monthTotal">₹0</strong>
+            <span id="budgetStatus">0% of budget</span>
+          </article>
+          <article class="stat-card accent-coral">
+            <p>Biggest Category</p>
+            <strong id="topCategory">None</strong>
+            <span id="topCategoryAmount">₹0</span>
+          </article>
+          <article class="stat-card accent-ink">
+            <p>Average Daily</p>
+            <strong id="dailyAverage">₹0</strong>
+            <span>for current month</span>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel chart-panel" aria-labelledby="chart-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Breakdown</p>
+                <h2 id="chart-title">By Category</h2>
+              </div>
+              <select id="categoryFilter" aria-label="Filter category">
+                <option value="All">All categories</option>
+                <option value="Food">Food</option>
+                <option value="Travel">Travel</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Bills">Bills</option>
+                <option value="Health">Health</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Education">Education</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <canvas id="categoryCanvas" width="760" height="360" aria-label="Category expense bar chart"></canvas>
+          </article>
+
+          <article class="panel insight-panel" aria-labelledby="insight-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Insight</p>
+                <h2 id="insight-title">Monthly Pace</h2>
+              </div>
+            </div>
+            <div class="progress-ring" id="progressRing" aria-hidden="true">
+              <span id="progressPercent">0%</span>
+            </div>
+            <p id="paceMessage">Start adding expenses to see your monthly pace.</p>
+            <div class="mini-metrics">
+              <span><strong id="remainingBudget">₹25,000</strong> left</span>
+              <span><strong id="daysLeft">0</strong> days left</span>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="table-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Ledger</p>
+              <h2 id="table-title">Recent Expenses</h2>
+            </div>
+            <button class="danger-button" type="button" id="clearButton">Clear All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th>Method</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="expenseTable"></tbody>
+            </table>
+            <p class="empty-state" id="emptyState">No expenses yet. Add your first entry from the left panel.</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="dashboard page-section" id="groupsPage" aria-label="Group expenses dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Shared Ledger</p>
+            <h2>Split group expenses</h2>
+          </div>
+          <div class="topbar-actions group-actions">
+            <button class="secondary-button" type="button" id="seedGroupDemoButton">Load Group Demo</button>
+            <button class="danger-button" type="button" id="clearGroupExpensesButton">Settle Group</button>
+            <button class="danger-button solid-danger" type="button" id="deleteGroupButton">Delete Group</button>
+          </div>
+        </header>
+
+        <section class="stats-grid" aria-label="Group totals">
+          <article class="stat-card accent-green">
+            <p>Group Total</p>
+            <strong id="groupTotal">₹0</strong>
+            <span id="groupExpenseCount">0 expenses</span>
+          </article>
+          <article class="stat-card accent-blue">
+            <p>Members</p>
+            <strong id="memberCount">0</strong>
+            <span id="activeGroupName">No group selected</span>
+          </article>
+          <article class="stat-card accent-coral">
+            <p>Highest Paid</p>
+            <strong id="highestPaidName">None</strong>
+            <span id="highestPaidAmount">₹0</span>
+          </article>
+          <article class="stat-card accent-ink">
+            <p>Split Per Person</p>
+            <strong id="splitPerPerson">₹0</strong>
+            <span>equal split</span>
+          </article>
+        </section>
+
+        <section class="content-grid group-content-grid">
+          <article class="panel" aria-labelledby="group-expense-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Group Expense</p>
+                <h2 id="group-expense-title">Add Shared Expense</h2>
+              </div>
+            </div>
+            <form id="groupExpenseForm" class="group-expense-form">
+              <label>
+                <span>Description</span>
+                <input id="groupExpenseDescriptionInput" type="text" placeholder="Dinner, hotel, petrol..." required />
+              </label>
+              <label>
+                <span>Amount</span>
+                <input id="groupExpenseAmountInput" type="number" min="1" step="0.01" placeholder="1200" required />
+              </label>
+              <label>
+                <span>Category</span>
+                <select id="groupExpenseCategoryInput" required>
+                  <option value="Food">Food</option>
+                  <option value="Travel">Travel</option>
+                  <option value="Shopping">Shopping</option>
+                  <option value="Bills">Bills</option>
+                  <option value="Health">Health</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Stay">Stay</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label>
+                <span>Paid By</span>
+                <select id="groupPaidByInput" required></select>
+              </label>
+              <label>
+                <span>Date</span>
+                <input id="groupExpenseDateInput" type="date" required />
+              </label>
+              <fieldset class="member-checks">
+                <legend>Split Between</legend>
+                <div id="splitMembers"></div>
+              </fieldset>
+              <button class="primary-button" type="submit">
+                <span aria-hidden="true">＋</span>
+                Add Split Expense
+              </button>
+            </form>
+          </article>
+
+          <article class="panel balances-panel" aria-labelledby="balances-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Balances</p>
+                <h2 id="balances-title">Who Owes Whom</h2>
+              </div>
+            </div>
+            <div id="balancesList" class="balance-list"></div>
+          </article>
+        </section>
+
+        <section class="panel chart-panel" aria-labelledby="group-chart-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Group Dashboard</p>
+              <h2 id="group-chart-title">Group Spending by Category</h2>
+            </div>
+          </div>
+          <canvas id="groupCategoryCanvas" width="760" height="320" aria-label="Group category expense bar chart"></canvas>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="group-table-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Group Ledger</p>
+              <h2 id="group-table-title">Shared Expenses</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th>Paid By</th>
+                  <th>Split</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="groupExpenseTable"></tbody>
+            </table>
+            <p class="empty-state" id="groupEmptyState">Create a group and add a shared expense.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
