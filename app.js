@@ -809,7 +809,6 @@ async function supabaseRequest(path, options = {}) {
     ...options,
     headers: {
       apikey: SUPABASE_PUBLISHABLE_KEY,
-      Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
