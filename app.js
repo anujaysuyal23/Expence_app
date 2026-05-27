@@ -4,6 +4,7 @@ const GROUPS_KEY = "expense-split:groups:v1";
 const SUPABASE_REST_URL = "https://lmdjblewkuaraqrpgpws.supabase.co/rest/v1";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ux2-Xg0drJchEU0OTmAnQA_MKdcZ1gn";
 const USE_SUPABASE_GROUPS = true;
+const APP_VERSION = "v2.1-supabase-check";
 
 const categories = {
   Food: "#177a5b",
@@ -67,6 +68,10 @@ let expenses = readJson(STORAGE_KEY, []);
 let budget = Number(localStorage.getItem(BUDGET_KEY) || 25000);
 let groups = readJson(GROUPS_KEY, []);
 let activeGroupId = groups[0]?.id || "";
+
+document.documentElement.dataset.appVersion = APP_VERSION;
+document.body.insertAdjacentHTML("afterbegin", `<div class="version-badge">ExpenseSplit ${APP_VERSION}</div>`);
+console.info(`ExpenseSplit ${APP_VERSION}`);
 
 dateInput.value = todayISO();
 groupExpenseDateInput.value = todayISO();

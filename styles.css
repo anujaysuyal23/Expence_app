@@ -44,6 +44,21 @@ button {
   cursor: pointer;
 }
 
+.version-badge {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 20;
+  padding: 8px 10px;
+  border: 1px solid rgba(24, 33, 31, 0.14);
+  border-radius: 999px;
+  color: white;
+  background: #275fbd;
+  box-shadow: 0 10px 26px rgba(24, 33, 31, 0.18);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
